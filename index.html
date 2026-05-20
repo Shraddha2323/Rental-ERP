@@ -1,0 +1,181 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Rental ERP - Tenants</title>
+    <link rel="stylesheet" href="styles.css" />
+  </head>
+  <body>
+    <div class="app-shell">
+      <aside class="sidebar" aria-label="Primary">
+        <div class="brand">
+          <span class="brand-mark">R</span>
+          <div>
+            <strong>Rental ERP</strong>
+            <small>Tenant dashboard</small>
+          </div>
+        </div>
+
+        <nav class="nav-list">
+          <button class="nav-item active" type="button">Tenants</button>
+          <button class="nav-item" type="button" disabled>Properties</button>
+          <button class="nav-item" type="button" disabled>Payments</button>
+          <button class="nav-item" type="button" disabled>Reports</button>
+        </nav>
+
+        <div class="connection-card">
+          <span id="connectionDot" class="status-dot"></span>
+          <div>
+            <strong id="connectionTitle">Checking database</strong>
+            <small id="connectionDetail">Preparing tenant records</small>
+          </div>
+        </div>
+      </aside>
+
+      <main class="main">
+        <header class="topbar">
+          <div>
+            <p class="eyebrow">Personal rental management</p>
+            <h1>Tenants</h1>
+          </div>
+          <button id="addTenantButton" class="primary-action" type="button">Add tenant</button>
+        </header>
+
+        <section class="metrics-grid" aria-label="Tenant summary">
+          <article class="metric">
+            <span>Total tenants</span>
+            <strong id="totalTenants">0</strong>
+          </article>
+          <article class="metric">
+            <span>Active leases</span>
+            <strong id="activeTenants">0</strong>
+          </article>
+          <article class="metric">
+            <span>Monthly rent</span>
+            <strong id="monthlyRent">0</strong>
+          </article>
+          <article class="metric">
+            <span>Outstanding</span>
+            <strong id="outstandingRent">0</strong>
+          </article>
+        </section>
+
+        <section class="toolbar" aria-label="Tenant filters">
+          <label class="search-box">
+            <span>Search</span>
+            <input id="searchInput" type="search" placeholder="Tenant, property, phone..." />
+          </label>
+          <label class="filter-box">
+            <span>Status</span>
+            <select id="statusFilter">
+              <option value="all">All</option>
+              <option value="active">Active</option>
+              <option value="notice">Notice</option>
+              <option value="inactive">Inactive</option>
+            </select>
+          </label>
+        </section>
+
+        <section class="table-panel">
+          <div class="panel-heading">
+            <div>
+              <h2>Tenant details</h2>
+              <p>Rent, lease, deposit, and outstanding amount in one place.</p>
+            </div>
+            <button id="refreshButton" class="ghost-button" type="button">Refresh</button>
+          </div>
+
+          <div class="table-wrap">
+            <table>
+              <thead>
+                <tr>
+                  <th>Tenant</th>
+                  <th>Property / Unit</th>
+                  <th>Lease</th>
+                  <th>Rent</th>
+                  <th>Deposit</th>
+                  <th>Outstanding</th>
+                  <th>Status</th>
+                </tr>
+              </thead>
+              <tbody id="tenantRows"></tbody>
+            </table>
+          </div>
+          <div id="emptyState" class="empty-state" hidden>No tenants match this view.</div>
+        </section>
+      </main>
+    </div>
+
+    <dialog id="tenantDialog">
+      <form id="tenantForm" method="dialog" class="tenant-form">
+        <header>
+          <div>
+            <p class="eyebrow">Tenant record</p>
+            <h2>Add tenant</h2>
+          </div>
+          <button class="icon-button" value="cancel" type="submit" aria-label="Close">x</button>
+        </header>
+
+        <div class="form-grid">
+          <label>
+            Tenant name
+            <input name="name" required />
+          </label>
+          <label>
+            Phone
+            <input name="phone" />
+          </label>
+          <label>
+            Email
+            <input name="email" type="email" />
+          </label>
+          <label>
+            Property
+            <input name="property_name" required />
+          </label>
+          <label>
+            Unit
+            <input name="unit_name" required />
+          </label>
+          <label>
+            Lease start
+            <input name="lease_start" type="date" />
+          </label>
+          <label>
+            Lease end
+            <input name="lease_end" type="date" />
+          </label>
+          <label>
+            Monthly rent
+            <input name="monthly_rent" type="number" min="0" step="1" required />
+          </label>
+          <label>
+            Deposit
+            <input name="deposit_amount" type="number" min="0" step="1" />
+          </label>
+          <label>
+            Outstanding
+            <input name="outstanding_amount" type="number" min="0" step="1" />
+          </label>
+          <label>
+            Status
+            <select name="status">
+              <option value="active">Active</option>
+              <option value="notice">Notice</option>
+              <option value="inactive">Inactive</option>
+            </select>
+          </label>
+        </div>
+
+        <footer>
+          <button class="ghost-button" value="cancel" type="submit">Cancel</button>
+          <button class="primary-action" value="default" type="submit">Save tenant</button>
+        </footer>
+      </form>
+    </dialog>
+
+    <script src="config.js"></script>
+    <script src="app.js"></script>
+  </body>
+</html>
