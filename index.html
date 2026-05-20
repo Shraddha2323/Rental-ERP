@@ -61,6 +61,48 @@
           </article>
         </section>
 
+        <section class="analytics-grid" aria-label="Tenant analytics">
+          <article class="analytics-panel status-panel">
+            <div class="panel-heading compact">
+              <div>
+                <h2>Lease mix</h2>
+                <p>Current tenant status split</p>
+              </div>
+            </div>
+            <div class="chart-layout">
+              <canvas id="statusChart" width="180" height="180" aria-label="Lease status pie chart"></canvas>
+              <div id="statusLegend" class="chart-legend"></div>
+            </div>
+          </article>
+
+          <article class="analytics-panel">
+            <div class="panel-heading compact">
+              <div>
+                <h2>Rent by property</h2>
+                <p>Share of monthly rent</p>
+              </div>
+            </div>
+            <div class="chart-layout">
+              <canvas id="rentChart" width="180" height="180" aria-label="Rent by property pie chart"></canvas>
+              <div id="rentLegend" class="chart-legend"></div>
+            </div>
+          </article>
+
+          <article class="analytics-panel wide-panel">
+            <div class="panel-heading compact">
+              <div>
+                <h2>Collection health</h2>
+                <p>Rent collected versus outstanding for this view</p>
+              </div>
+              <strong id="collectionRate" class="collection-rate">0%</strong>
+            </div>
+            <div class="collection-bar" aria-hidden="true">
+              <span id="collectionFill"></span>
+            </div>
+            <div id="outstandingBars" class="bar-list"></div>
+          </article>
+        </section>
+
         <section class="toolbar" aria-label="Tenant filters">
           <label class="search-box">
             <span>Search</span>

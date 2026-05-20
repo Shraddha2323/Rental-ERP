@@ -62,6 +62,13 @@ const elements = {
   activeTenants: document.querySelector("#activeTenants"),
   monthlyRent: document.querySelector("#monthlyRent"),
   outstandingRent: document.querySelector("#outstandingRent"),
+  statusChart: document.querySelector("#statusChart"),
+  rentChart: document.querySelector("#rentChart"),
+  statusLegend: document.querySelector("#statusLegend"),
+  rentLegend: document.querySelector("#rentLegend"),
+  collectionRate: document.querySelector("#collectionRate"),
+  collectionFill: document.querySelector("#collectionFill"),
+  outstandingBars: document.querySelector("#outstandingBars"),
   connectionDot: document.querySelector("#connectionDot"),
   connectionTitle: document.querySelector("#connectionTitle"),
   connectionDetail: document.querySelector("#connectionDetail"),
@@ -72,6 +79,8 @@ const currency = new Intl.NumberFormat("en-IN", {
   currency: "INR",
   maximumFractionDigits: 0,
 });
+
+const chartColors = ["#126b57", "#2f6fbb", "#d49b2a", "#c8524f", "#6b5dd3", "#4a9c8c"];
 
 function hasSupabaseConfig() {
   return Boolean(config.SUPABASE_URL && config.SUPABASE_ANON_KEY);
@@ -208,6 +217,133 @@ function renderMetrics(filteredTenants) {
   elements.outstandingRent.textContent = currency.format(totalOutstanding);
 }
 
+function renderAnalytics(filteredTenants) {
+  const statusData = ["active", "notice", "inactive"].map((status, index) => ({
+    label: status,
+    value: filteredTenants.filter((tenant) => tenant.status === status).length,
+    color: chartColors[index],
+  }));
+
+  const rentByProperty = groupByValue(filteredTenants, "property_name", "monthly_rent").map((item, index) => ({
+    ...item,
+    color: chartColors[index % chartColors.length],
+  }));
+
+  const totalRent = filteredTenants.reduce((sum, tenant) => sum + Number(tenant.monthly_rent || 0), 0);
+  const totalOutstanding = filteredTenants.reduce(
+    (sum, tenant) => sum + Number(tenant.outstanding_amount || 0),
+    0,
+  );
+  const expected = totalRent + totalOutstanding;
+  const collectionRate = expected > 0 ? Math.round((totalRent / expected) * 100) : 0;
+
+  drawDonutChart(elements.statusChart, statusData);
+  drawDonutChart(elements.rentChart, rentByProperty);
+  renderLegend(elements.statusLegend, statusData, "count");
+  renderLegend(elements.rentLegend, rentByProperty, "currency");
+  renderCollection(collectionRate, filteredTenants);
+}
+
+function groupByValue(records, labelKey, valueKey) {
+  const grouped = records.reduce((accumulator, record) => {
+    const label = record[labelKey] || "Unassigned";
+    accumulator[label] = (accumulator[label] || 0) + Number(record[valueKey] || 0);
+    return accumulator;
+  }, {});
+
+  return Object.entries(grouped)
+    .map(([label, value]) => ({ label, value }))
+    .sort((first, second) => second.value - first.value);
+}
+
+function drawDonutChart(canvas, segments) {
+  const context = canvas.getContext("2d");
+  const size = canvas.width;
+  const center = size / 2;
+  const radius = center - 10;
+  const total = segments.reduce((sum, segment) => sum + Number(segment.value || 0), 0);
+
+  context.clearRect(0, 0, size, size);
+
+  if (!total) {
+    context.beginPath();
+    context.arc(center, center, radius, 0, Math.PI * 2);
+    context.strokeStyle = "#edf1f7";
+    context.lineWidth = 26;
+    context.stroke();
+    return;
+  }
+
+  let startAngle = -Math.PI / 2;
+  segments.forEach((segment) => {
+    const sliceAngle = (segment.value / total) * Math.PI * 2;
+    context.beginPath();
+    context.arc(center, center, radius, startAngle, startAngle + sliceAngle);
+    context.strokeStyle = segment.color;
+    context.lineWidth = 28;
+    context.lineCap = "round";
+    context.stroke();
+    startAngle += sliceAngle;
+  });
+
+  context.fillStyle = "#1d2433";
+  context.font = "700 22px system-ui, sans-serif";
+  context.textAlign = "center";
+  context.textBaseline = "middle";
+  context.fillText(total.toLocaleString("en-IN"), center, center - 6);
+  context.fillStyle = "#667085";
+  context.font = "700 11px system-ui, sans-serif";
+  context.fillText("total", center, center + 17);
+}
+
+function renderLegend(container, segments, mode) {
+  const total = segments.reduce((sum, segment) => sum + Number(segment.value || 0), 0);
+  const visibleSegments = segments.filter((segment) => Number(segment.value || 0) > 0);
+
+  container.innerHTML = (visibleSegments.length ? visibleSegments : [{ label: "No data", value: 0, color: "#d9e0ec" }])
+    .map((segment) => {
+      const percent = total > 0 ? Math.round((segment.value / total) * 100) : 0;
+      const value = mode === "currency" ? currency.format(segment.value) : segment.value;
+      return `
+        <div class="legend-row">
+          <span class="legend-dot" style="background: ${segment.color}"></span>
+          <span>${escapeHtml(formatLabel(segment.label))}</span>
+          <strong>${value}${total > 0 ? ` (${percent}%)` : ""}</strong>
+        </div>
+      `;
+    })
+    .join("");
+}
+
+function renderCollection(collectionRate, filteredTenants) {
+  elements.collectionRate.textContent = `${collectionRate}%`;
+  elements.collectionFill.style.width = `${collectionRate}%`;
+
+  const owingTenants = filteredTenants
+    .filter((tenant) => Number(tenant.outstanding_amount || 0) > 0)
+    .sort((first, second) => Number(second.outstanding_amount || 0) - Number(first.outstanding_amount || 0))
+    .slice(0, 4);
+  const maxOutstanding = Math.max(...owingTenants.map((tenant) => Number(tenant.outstanding_amount || 0)), 1);
+
+  elements.outstandingBars.innerHTML = owingTenants.length
+    ? owingTenants
+        .map((tenant) => {
+          const outstanding = Number(tenant.outstanding_amount || 0);
+          const width = Math.max(4, Math.round((outstanding / maxOutstanding) * 100));
+          return `
+            <div class="bar-row">
+              <header>
+                <span>${escapeHtml(tenant.name)}</span>
+                <strong>${currency.format(outstanding)}</strong>
+              </header>
+              <div class="bar-track"><span style="width: ${width}%"></span></div>
+            </div>
+          `;
+        })
+        .join("")
+    : `<div class="empty-state">No outstanding rent in this view.</div>`;
+}
+
 function renderRows(filteredTenants) {
   elements.rows.innerHTML = filteredTenants
     .map(
@@ -240,7 +376,14 @@ function renderRows(filteredTenants) {
 function render() {
   const filteredTenants = getFilteredTenants();
   renderMetrics(filteredTenants);
+  renderAnalytics(filteredTenants);
   renderRows(filteredTenants);
+}
+
+function formatLabel(value) {
+  return String(value || "")
+    .replace(/_/g, " ")
+    .replace(/\b\w/g, (letter) => letter.toUpperCase());
 }
 
 function formatDate(value) {
