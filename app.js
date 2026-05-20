@@ -1,4 +1,5 @@
 const config = window.RENTAL_ERP_CONFIG || {};
+const firebaseSdkVersion = "11.10.0";
 
 const demoTenants = [
   {
@@ -48,6 +49,8 @@ const demoTenants = [
 let tenants = [];
 let searchTerm = "";
 let statusFilter = "all";
+let firebaseModules;
+let firestoreDb;
 
 const elements = {
   rows: document.querySelector("#tenantRows"),
@@ -82,28 +85,43 @@ const currency = new Intl.NumberFormat("en-IN", {
 
 const chartColors = ["#126b57", "#2f6fbb", "#d49b2a", "#c8524f", "#6b5dd3", "#4a9c8c"];
 
-function hasSupabaseConfig() {
-  return Boolean(config.SUPABASE_URL && config.SUPABASE_ANON_KEY);
+function hasFirebaseConfig() {
+  return Boolean(config.FIREBASE_API_KEY && config.FIREBASE_PROJECT_ID && config.FIREBASE_APP_ID);
 }
 
-async function supabaseRequest(path, options = {}) {
-  const response = await fetch(`${config.SUPABASE_URL}/rest/v1/${path}`, {
-    ...options,
-    headers: {
-      apikey: config.SUPABASE_ANON_KEY,
-      Authorization: `Bearer ${config.SUPABASE_ANON_KEY}`,
-      "Content-Type": "application/json",
-      Prefer: "return=representation",
-      ...(options.headers || {}),
-    },
-  });
+async function getFirebase() {
+  if (!firebaseModules) {
+    const [{ initializeApp }, firestore] = await Promise.all([
+      import(`https://www.gstatic.com/firebasejs/${firebaseSdkVersion}/firebase-app.js`),
+      import(`https://www.gstatic.com/firebasejs/${firebaseSdkVersion}/firebase-firestore.js`),
+    ]);
 
-  if (!response.ok) {
-    const message = await response.text();
-    throw new Error(message || `Database request failed with ${response.status}`);
+    const app = initializeApp({
+      apiKey: config.FIREBASE_API_KEY,
+      authDomain: config.FIREBASE_AUTH_DOMAIN,
+      projectId: config.FIREBASE_PROJECT_ID,
+      storageBucket: config.FIREBASE_STORAGE_BUCKET,
+      messagingSenderId: config.FIREBASE_MESSAGING_SENDER_ID,
+      appId: config.FIREBASE_APP_ID,
+    });
+
+    firestoreDb = firestore.getFirestore(app);
+    firebaseModules = firestore;
   }
 
-  return response.status === 204 ? [] : response.json();
+  return { db: firestoreDb, firestore: firebaseModules };
+}
+
+async function loadFirestoreTenants() {
+  const { db, firestore } = await getFirebase();
+  const snapshot = await firestore.getDocs(firestore.collection(db, "tenants"));
+
+  return snapshot.docs
+    .map((doc) => ({
+      id: doc.id,
+      ...doc.data(),
+    }))
+    .sort((first, second) => getCreatedAtMillis(second.created_at) - getCreatedAtMillis(first.created_at));
 }
 
 function readLocalTenants() {
@@ -119,8 +137,8 @@ async function loadTenants() {
   setConnection("checking");
 
   try {
-    if (hasSupabaseConfig()) {
-      tenants = await supabaseRequest("tenants?select=*&order=created_at.desc");
+    if (hasFirebaseConfig()) {
+      tenants = await loadFirestoreTenants();
       setConnection("live");
     } else {
       tenants = readLocalTenants();
@@ -136,12 +154,15 @@ async function loadTenants() {
 }
 
 async function addTenant(tenant) {
-  if (hasSupabaseConfig()) {
-    const [savedTenant] = await supabaseRequest("tenants", {
-      method: "POST",
-      body: JSON.stringify(tenant),
-    });
-    tenants = [savedTenant, ...tenants];
+  if (hasFirebaseConfig()) {
+    const { db, firestore } = await getFirebase();
+    const tenantToSave = {
+      ...tenant,
+      created_at: firestore.serverTimestamp(),
+      updated_at: firestore.serverTimestamp(),
+    };
+    const docRef = await firestore.addDoc(firestore.collection(db, "tenants"), tenantToSave);
+    tenants = [{ ...tenant, id: docRef.id, created_at: new Date().toISOString() }, ...tenants];
   } else {
     const savedTenant = {
       ...tenant,
@@ -161,20 +182,20 @@ function setConnection(state) {
   if (state === "live") {
     elements.connectionDot.classList.add("live");
     elements.connectionTitle.textContent = "Live database";
-    elements.connectionDetail.textContent = "Connected to Supabase Postgres";
+    elements.connectionDetail.textContent = "Connected to Firebase Firestore";
     return;
   }
 
   if (state === "offline") {
     elements.connectionDot.classList.add("offline");
     elements.connectionTitle.textContent = "Demo fallback";
-    elements.connectionDetail.textContent = "Check Supabase URL/key or policies";
+    elements.connectionDetail.textContent = "Check Firebase config or rules";
     return;
   }
 
   if (state === "demo") {
     elements.connectionTitle.textContent = "Demo mode";
-    elements.connectionDetail.textContent = "Add Supabase config to go live";
+    elements.connectionDetail.textContent = "Add Firebase config to go live";
     return;
   }
 
@@ -384,6 +405,18 @@ function formatLabel(value) {
   return String(value || "")
     .replace(/_/g, " ")
     .replace(/\b\w/g, (letter) => letter.toUpperCase());
+}
+
+function getCreatedAtMillis(value) {
+  if (!value) {
+    return 0;
+  }
+
+  if (typeof value.toMillis === "function") {
+    return value.toMillis();
+  }
+
+  return new Date(value).getTime() || 0;
 }
 
 function formatDate(value) {
