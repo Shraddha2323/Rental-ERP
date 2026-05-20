@@ -1,0 +1,4 @@
+window.RENTAL_ERP_CONFIG = {
+  SUPABASE_URL: "",
+  SUPABASE_ANON_KEY: "",
+};
